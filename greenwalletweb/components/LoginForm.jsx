@@ -100,7 +100,7 @@ export default function LoginForm() {
       <div className="text-center">
         <p className="text-sm text-gray-600">
           New to AgriFin?{' '}
-          <a href="#" className="text-green-600 hover:text-green-500 font-medium">
+          <a href="#" className="text-green-600 hover:text-green-500 font-medium ">
             Create account
           </a>
         </p>
