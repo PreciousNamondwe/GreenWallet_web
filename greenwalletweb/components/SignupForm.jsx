@@ -1,23 +1,37 @@
 'use client';
 import { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, Building, User, Phone, MapPin } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Mail, Building, User, Phone } from 'lucide-react';
+import { supabase } from '../lib/superbase';
 
 export default function SignupForm() {
-  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
   const [formData, setFormData] = useState({
     institutionName: '',
     email: '',
     phone: '',
-    address: '',
-    contactPerson: '',
-    password: '',
-    confirmPassword: ''
+    contactPerson: ''
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Microfinance signup data:', formData);
-    // Handle microfinance registration logic here
+    setIsLoading(true);
+    setError('');
+
+    try {
+      // Store basic data in sessionStorage for KYC
+      sessionStorage.setItem('microfinanceBasicData', JSON.stringify(formData));
+      
+      // Redirect to KYC page - we'll create the user after KYC completion
+      router.push('/kyc-verification');
+    } catch (err) {
+      setError('Failed to proceed. Please try again.');
+      console.error('Signup error:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (e) => {
@@ -32,14 +46,20 @@ export default function SignupForm() {
       <div className="text-center mb-6">
         <h3 className="text-xl font-bold text-foreground">Register Your Microfinance</h3>
         <p className="text-sm text-muted-foreground mt-2">
-          Create an account to start managing farmers and loans
+          Start your registration - complete KYC verification in the next step
         </p>
       </div>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
+        </div>
+      )}
 
       {/* Institution Name */}
       <div>
         <label htmlFor="institutionName" className="block text-sm font-medium text-foreground mb-2">
-          Microfinance Institution Name
+          Microfinance Institution Name *
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -61,7 +81,7 @@ export default function SignupForm() {
       {/* Contact Person */}
       <div>
         <label htmlFor="contactPerson" className="block text-sm font-medium text-foreground mb-2">
-          Contact Person Name
+          Contact Person Name *
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -84,7 +104,7 @@ export default function SignupForm() {
         {/* Email */}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-            Business Email
+            Business Email *
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -106,7 +126,7 @@ export default function SignupForm() {
         {/* Phone */}
         <div>
           <label htmlFor="phone" className="block text-sm font-medium text-foreground mb-2">
-            Business Phone
+            Business Phone *
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -125,12 +145,29 @@ export default function SignupForm() {
           </div>
         </div>
       </div>
+
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <div className="w-6 h-6 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg className="w-3 h-3 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">KYC Verification Required</p>
+            <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+              After basic registration, you'll complete KYC verification including address, password setup, and document uploads.
+            </p>
+          </div>
+        </div>
+      </div>
       
       <button
         type="submit"
-        className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg font-semibold hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors shadow-md"
+        disabled={isLoading}
+        className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg font-semibold hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Continue
+        {isLoading ? 'Processing...' : 'Continue to KYC Verification'}
       </button>
 
       <div className="text-center">
@@ -138,7 +175,7 @@ export default function SignupForm() {
           Already have an account?{' '}
           <button
             type="button"
-            onClick={() => {/* Switch to login */}}
+            onClick={() => router.push('/login')}
             className="text-primary hover:text-primary/80 font-medium"
           >
             Sign in here
