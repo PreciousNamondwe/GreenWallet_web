@@ -1,4 +1,5 @@
-import './globals.css'
+
+import './globals.css';
 
 export const metadata = {
   title: 'AgriFin - Agricultural Microfinance Platform',
@@ -8,9 +9,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        {children}
+      <body>
+          {children}
       </body>
     </html>
-  )
+  );
 }

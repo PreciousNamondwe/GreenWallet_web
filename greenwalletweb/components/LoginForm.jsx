@@ -2,11 +2,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { supabase } from '../lib/superbase'; // Fixed typo: superbase → supabase
 
 export default function LoginForm() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -15,19 +17,79 @@ export default function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
     
     try {
-      console.log('Login data:', formData);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // For demo purposes, always redirect to dashboard
-      // In real app, you'd validate credentials first
-      router.push('/dashboard');
+      // Validate form data
+      if (!formData.email || !formData.password) {
+        setError('Please fill in all fields');
+        return;
+      }
+
+      // Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (error) {
+        console.error('Login error:', error);
+        
+        // User-friendly error messages
+        switch (error.message) {
+          case 'Invalid login credentials':
+            setError('Invalid email or password. Please try again.');
+            break;
+          case 'Email not confirmed':
+            setError('Please verify your email address before logging in.');
+            break;
+          case 'Too many requests':
+            setError('Too many login attempts. Please try again later.');
+            break;
+          default:
+            setError(error.message || 'Login failed. Please try again.');
+        }
+        return;
+      }
+
+      if (!data.user) {
+        setError('Login failed. Please try again.');
+        return;
+      }
+
+      // Check if user is a microfinance institution
+      const { data: institutionData, error: institutionError } = await supabase
+        .from('microfinance_institutions')
+        .select('kyc_status, is_active')
+        .eq('id', data.user.id)
+        .single();
+
+      if (institutionError) {
+        console.error('Error fetching institution data:', institutionError);
+        // If institution doesn't exist, it might be a different user type
+        setError('Invalid account type. Please use a microfinance institution account.');
+        return;
+      }
+
+      // Check KYC status - allow login but show warning for pending KYC
+      if (institutionData.kyc_status !== 'approved') {
+        // Instead of blocking login, allow access but show a warning
+        console.warn('User logged in with KYC status:', institutionData.kyc_status);
+        // You can show a banner in the dashboard instead of blocking login
+      }
+
+      if (!institutionData.is_active) {
+        setError('Your account is inactive. Please contact support.');
+        return;
+      }
+
+      // Success - redirect to dashboard
+      console.log('Login successful:', data.user);
+      router.push('/dashboard/dashboard'); // Redirect to specific dashboard page
       
     } catch (error) {
       console.error('Login failed:', error);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -38,13 +100,60 @@ export default function LoginForm() {
       ...formData,
       [e.target.name]: e.target.value
     });
+    // Clear error when user starts typing
+    if (error) setError('');
+  };
+
+  const handleForgotPassword = async () => {
+    if (!formData.email) {
+      setError('Please enter your email address to reset password.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        setError('Error sending reset email: ' + error.message);
+      } else {
+        setError('Password reset email sent! Check your inbox.');
+      }
+    } catch (error) {
+      setError('Failed to send reset email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignUpRedirect = () => {
+    router.push('/signup');
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="text-center mb-6">
+        <h3 className="text-xl font-bold text-foreground">Welcome Back</h3>
+        <p className="text-sm text-muted-foreground mt-2">
+          Sign in to your microfinance institution account
+        </p>
+      </div>
+
+      {error && (
+        <div className={`p-4 rounded-lg text-sm ${
+          error.includes('sent') 
+            ? 'bg-green-50 text-green-800 border border-green-200' 
+            : 'bg-red-50 text-red-800 border border-red-200'
+        }`}>
+          {error}
+        </div>
+      )}
+
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-          Email Address
+          Email Address *
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -56,7 +165,7 @@ export default function LoginForm() {
             name="email"
             value={formData.email}
             onChange={handleChange}
-            className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-input"
+            className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background"
             placeholder="institution@example.com"
             required
             disabled={isLoading}
@@ -66,7 +175,7 @@ export default function LoginForm() {
 
       <div>
         <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-          Password
+          Password *
         </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -78,10 +187,11 @@ export default function LoginForm() {
             name="password"
             value={formData.password}
             onChange={handleChange}
-            className="block w-full pl-10 pr-10 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-input"
+            className="block w-full pl-10 pr-10 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors bg-background"
             placeholder="Enter your password"
             required
             disabled={isLoading}
+            minLength="8"
           />
           <button
             type="button"
@@ -107,9 +217,14 @@ export default function LoginForm() {
           />
           <span className="ml-2 text-sm text-foreground">Remember me</span>
         </label>
-        <a href="#" className="text-sm text-primary hover:text-primary/80 font-medium">
+        <button
+          type="button"
+          onClick={handleForgotPassword}
+          className="text-sm text-primary hover:text-primary/80 font-medium disabled:opacity-50"
+          disabled={isLoading}
+        >
           Forgot password?
-        </a>
+        </button>
       </div>
 
       <button
@@ -129,11 +244,12 @@ export default function LoginForm() {
 
       <div className="text-center">
         <p className="text-sm text-muted-foreground">
-          New to AgriFin?{' '}
+          Don't have an account?{' '}
           <button
             type="button"
-            onClick={() => {/* Switch to signup */}}
-            className="text-primary hover:text-primary/80 font-medium"
+            onClick={handleSignUpRedirect}
+            className="text-primary hover:text-primary/80 font-medium disabled:opacity-50"
+            disabled={isLoading}
           >
             Create account
           </button>

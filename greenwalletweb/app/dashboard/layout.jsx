@@ -15,55 +15,69 @@ import {
   Settings,
   LogOut,
 } from 'lucide-react';
+import userSession from '../sessions/user_session'; // Adjust path as needed
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [userData, setUserData] = useState(null);
+  const [sessionData, setSessionData] = useState({
+    user: null,
+    institution: null,
+    isLoading: true
+  });
   const [activePage, setActivePage] = useState('dashboard');
 
+  // Subscribe to session changes
   useEffect(() => {
-    const fetchUserData = async () => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setUserData({
-        institutionName: "GreenField Microfinance",
-        contactPerson: "Precious Namondwe",
-        email: "admin@greenfield.mf",
-        totalFarmers: 1247,
-        activeLoans: 892,
-        totalPortfolio: 24500000,
-        pendingApplications: 34,
-        portfolioGrowth: 15.2,
-        repaymentRate: 94.7
-      });
-    };
-    
-    fetchUserData();
+    // Initialize session
+    userSession.initialize();
+
+    // Subscribe to session updates
+    const unsubscribe = userSession.subscribe(setSessionData);
+
+    return () => unsubscribe();
   }, []);
 
- // Update active page based on current path
-useEffect(() => {
-  const pathSegments = pathname.split('/');
-  const currentPage = pathSegments[pathSegments.length - 1] || 'dashboard';
-  setActivePage(currentPage);
-}, [pathname]);
+  // Update active page based on current path
+  useEffect(() => {
+    const pathSegments = pathname.split('/');
+    const currentPage = pathSegments[pathSegments.length - 1] || 'dashboard';
+    setActivePage(currentPage);
+  }, [pathname]);
 
- const navigation = [
-  { name: 'Dashboard', href: '/dashboard/dashboard', icon: Home, current: activePage === 'dashboard' },
-  { name: 'Farmers', href: '/dashboard/farmers', icon: Users, current: activePage === 'farmers' },
-  { name: 'Loans', href: '/dashboard/loans', icon: FileText, current: activePage === 'loans' },
-  { name: 'Payments', href: '/dashboard/payments', icon: DollarSign, current: activePage === 'payments' },
-  { name: 'Reports', href: '/dashboard/reports', icon: BarChart3, current: activePage === 'reports' },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings, current: activePage === 'settings' },
-];
+  const navigation = [
+    { name: 'Dashboard', href: '/dashboard/dashboard', icon: Home, current: activePage === 'dashboard' },
+    { name: 'Farmers', href: '/dashboard/farmers', icon: Users, current: activePage === 'farmers' },
+    { name: 'Loans', href: '/dashboard/loans', icon: FileText, current: activePage === 'loans' },
+    { name: 'Payments', href: '/dashboard/payments', icon: DollarSign, current: activePage === 'payments' },
+    { name: 'Reports', href: '/dashboard/reports', icon: BarChart3, current: activePage === 'reports' },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings, current: activePage === 'settings' },
+  ];
 
   const handleNavigation = (href) => {
     router.push(href);
-    setSidebarOpen(false); // Close sidebar on mobile after navigation
+    setSidebarOpen(false);
   };
 
-  if (!userData) {
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!sessionData.isLoading && !sessionData.user) {
+      router.push('/login');
+    }
+  }, [sessionData.isLoading, sessionData.user, router]);
+
+  if (sessionData.isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -73,6 +87,15 @@ useEffect(() => {
       </div>
     );
   }
+
+  if (!sessionData.user) {
+    return null; // Will redirect due to useEffect above
+  }
+
+  const { user, institution } = sessionData;
+  const displayName = userSession.getDisplayName();
+  const contactPerson = userSession.getContactPerson();
+  const userInitials = userSession.getUserInitials();
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
@@ -131,16 +154,19 @@ useEffect(() => {
 
         {/* User Profile */}
         <div className="flex-shrink-0 p-4 border-t border-border">
-          <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted transition-colors cursor-pointer">
+          <button
+            onClick={handleLogout}
+            className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted transition-colors w-full text-left"
+          >
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-primary-foreground text-xs font-medium">PN</span>
+              <span className="text-primary-foreground text-xs font-medium">{userInitials}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{userData.contactPerson}</p>
-              <p className="text-xs text-muted-foreground truncate">{userData.institutionName}</p>
+              <p className="text-sm font-medium text-foreground truncate">{contactPerson}</p>
+              <p className="text-xs text-muted-foreground truncate">{displayName}</p>
             </div>
             <LogOut className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          </div>
+          </button>
         </div>
       </div>
 
@@ -166,11 +192,11 @@ useEffect(() => {
               
               <div className="flex items-center space-x-2">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-foreground">{userData.contactPerson}</p>
+                  <p className="text-sm font-medium text-foreground">{contactPerson}</p>
                   <p className="text-xs text-muted-foreground">Administrator</p>
                 </div>
                 <div className="w-8 h-8 bg-gradient-to-br from-primary to-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-primary-foreground text-xs font-semibold">JM</span>
+                  <span className="text-primary-foreground text-xs font-semibold">{userInitials}</span>
                 </div>
               </div>
             </div>
