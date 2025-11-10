@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://ryyolcydqdaaylhgsupa.supabase.co'
-const supabaseAnonKey = 'sb_publishable_Rf9ykkyHs0lJRqFZ_P-5EA_aYAaSO1V'
-const supabaseServiceKey = 'sb_secret_0_A6LHYsdLKToxspuF06OQ_SSwnUhyd' // Get this from Supabase dashboard
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // Regular client for most operations
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Admin client for bypassing RLS during registration
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+// // Admin client for bypassing RLS during registration
+// export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)

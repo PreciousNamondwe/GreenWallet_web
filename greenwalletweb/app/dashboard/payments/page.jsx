@@ -6,18 +6,18 @@ export default function PaymentsPage() {
   const [timeRange, setTimeRange] = useState('month');
   
   const payments = [
-    { id: 1, farmer: 'Musa Abdullahi', type: 'Repayment', amount: '₦45,000', date: '2024-01-15', status: 'Completed', method: 'Bank Transfer' },
-    { id: 2, farmer: 'Amina Bello', type: 'Repayment', amount: '₦25,000', date: '2024-01-14', status: 'Completed', method: 'Mobile Money' },
-    { id: 3, farmer: 'Chukwu Emeka', type: 'Disbursement', amount: '₦150,000', date: '2024-01-13', status: 'Completed', method: 'Bank Transfer' },
-    { id: 4, farmer: 'Fatima Yusuf', type: 'Repayment', amount: '₦30,000', date: '2024-01-12', status: 'Pending', method: 'Cash' },
-    { id: 5, farmer: 'Ibrahim Tanko', type: 'Repayment', amount: '₦20,000', date: '2024-01-11', status: 'Failed', method: 'Mobile Money' },
+    { id: 1, farmer: 'Musa Abdullahi', type: 'Repayment', amount: 'MKW45,000', date: '2024-01-15', status: 'Completed', method: 'Bank Transfer' },
+    { id: 2, farmer: 'Amina Bello', type: 'Repayment', amount: 'MKW25,000', date: '2024-01-14', status: 'Completed', method: 'Mobile Money' },
+    { id: 3, farmer: 'Chukwu Emeka', type: 'Disbursement', amount: 'MKW150,000', date: '2024-01-13', status: 'Completed', method: 'Bank Transfer' },
+    { id: 4, farmer: 'Fatima Yusuf', type: 'Repayment', amount: 'MKW30,000', date: '2024-01-12', status: 'Pending', method: 'Cash' },
+    { id: 5, farmer: 'Ibrahim Tanko', type: 'Repayment', amount: 'MKW20,000', date: '2024-01-11', status: 'Failed', method: 'Mobile Money' },
   ];
 
   const paymentStats = [
-    { title: 'Total Collected', value: '₦2.4M', change: '+15%', trend: 'up', description: 'This month' },
-    { title: 'Pending Payments', value: '₦125K', change: '-5%', trend: 'down', description: 'Awaiting clearance' },
+    { title: 'Total Collected', value: 'MKW2.4M', change: '+15%', trend: 'up', description: 'This month' },
+    { title: 'Pending Payments', value: 'MKW125K', change: '-5%', trend: 'down', description: 'Awaiting clearance' },
     { title: 'Success Rate', value: '96.2%', change: '+1.2%', trend: 'up', description: 'Payment success' },
-    { title: 'Average Payment', value: '₦28,500', change: '+8%', trend: 'up', description: 'Per transaction' },
+    { title: 'Average Payment', value: 'MKW28,500', change: '+8%', trend: 'up', description: 'Per transaction' },
   ];
 
   return (

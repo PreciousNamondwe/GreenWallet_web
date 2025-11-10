@@ -6,10 +6,10 @@ export default function FarmersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   
   const farmers = [
-    { id: 1, name: 'Musa Abdullahi', phone: '+2348012345678', location: 'Kano', status: 'Active', loans: 2 },
-    { id: 2, name: 'Amina Bello', phone: '+2348023456789', location: 'Lagos', status: 'Active', loans: 1 },
-    { id: 3, name: 'Chukwu Emeka', phone: '+2348034567890', location: 'Enugu', status: 'Pending', loans: 0 },
-    { id: 4, name: 'Fatima Yusuf', phone: '+2348045678901', location: 'Kaduna', status: 'Active', loans: 1 },
+    { id: 1, name: 'Majidu Inusa', phone: '+2348012345678', location: 'Lilongwe, 23', status: 'Active', loans: 2 },
+    { id: 2, name: 'Precious Namondwe', phone: '+2348023456789', location: 'Lilongwe 46', status: 'Active', loans: 1 },
+    { id: 3, name: 'Fatima Hussen', phone: '+2348034567890', location: 'Blantyre, zingwangwa', status: 'Pending', loans: 0 },
+    { id: 4, name: 'Clement Frank', phone: '+2348045678901', location: 'lilongwe, 36', status: 'Active', loans: 1 },
   ];
 
   return (

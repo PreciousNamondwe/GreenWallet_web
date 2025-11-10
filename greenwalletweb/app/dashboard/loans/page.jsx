@@ -33,7 +33,7 @@ export default function LoansPage() {
             <FileText className="h-8 w-8 text-green-600" />
             <span className="text-green-600 text-sm font-medium">+8%</span>
           </div>
-          <h3 className="text-2xl font-bold text-foreground mb-1">₦24.5M</h3>
+          <h3 className="text-2xl font-bold text-foreground mb-1">MKW24.5M</h3>
           <p className="text-sm font-medium text-foreground">Total Portfolio</p>
           <p className="text-xs text-muted-foreground">Active loan value</p>
         </div>

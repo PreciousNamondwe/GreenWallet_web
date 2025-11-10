@@ -15,7 +15,7 @@ import {
 export default function DashboardHomePage() {
   const userData = {
     institutionName: "GreenField Microfinance",
-    contactPerson: "John Manager",
+    contactPerson: "Precious Namondwe",
     email: "admin@greenfield.mf",
     totalFarmers: 1247,
     activeLoans: 892,
@@ -48,7 +48,7 @@ export default function DashboardHomePage() {
     },
     {
       title: 'Total Portfolio',
-      value: '₦24.5M',
+      value: 'MWK24.5M',
       change: '+15.2%',
       trend: 'up',
       icon: DollarSign,
@@ -71,36 +71,36 @@ export default function DashboardHomePage() {
   const recentActivities = [
     { 
       id: 1, 
-      farmer: 'Musa Abdullahi', 
+      farmer: 'Clement Frank', 
       action: 'Loan Approved', 
-      amount: '₦150,000', 
+      amount: 'MWK150,000', 
       time: '2 hours ago', 
       type: 'success',
       avatar: 'MA'
     },
     { 
       id: 2, 
-      farmer: 'Amina Bello', 
+      farmer: 'Precious Namondwe', 
       action: 'Application Submitted', 
-      amount: '₦200,000', 
+      amount: 'MWK200,000', 
       time: '4 hours ago', 
       type: 'info',
       avatar: 'AB'
     },
     { 
       id: 3, 
-      farmer: 'Chukwu Emeka', 
+      farmer: 'Majid Inusa', 
       action: 'Repayment Received', 
-      amount: '₦45,000', 
+      amount: 'MWK45,000', 
       time: '6 hours ago', 
       type: 'success',
       avatar: 'CE'
     },
     { 
       id: 4, 
-      farmer: 'Fatima Yusuf', 
+      farmer: 'Fatima Hussen', 
       action: 'Loan Disbursed', 
-      amount: '₦180,000', 
+      amount: 'MWK180,000', 
       time: '1 day ago', 
       type: 'success',
       avatar: 'FY'

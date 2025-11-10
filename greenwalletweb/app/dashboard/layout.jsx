@@ -28,7 +28,7 @@ export default function DashboardLayout({ children }) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       setUserData({
         institutionName: "GreenField Microfinance",
-        contactPerson: "John Manager",
+        contactPerson: "Precious Namondwe",
         email: "admin@greenfield.mf",
         totalFarmers: 1247,
         activeLoans: 892,
@@ -133,7 +133,7 @@ useEffect(() => {
         <div className="flex-shrink-0 p-4 border-t border-border">
           <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted transition-colors cursor-pointer">
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-primary-foreground text-xs font-medium">JM</span>
+              <span className="text-primary-foreground text-xs font-medium">PN</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">{userData.contactPerson}</p>
@@ -156,11 +156,6 @@ useEffect(() => {
               >
                 <Menu className="h-5 w-5 text-foreground" />
               </button>
-              <div className="flex-1 flex items-center">
-  <div>
-    <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Welcome back, precious!</h1>
-  </div>
-</div>
             </div>
             
             <div className="flex items-center space-x-3">

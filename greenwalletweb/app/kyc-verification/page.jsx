@@ -153,6 +153,7 @@ export default function KYCVerification() {
         password: kycData.password,
         options: {
           data: {
+            display_name: basicData.institutionName,
             institution_name: basicData.institutionName,
             contact_person: basicData.contactPerson,
             phone: basicData.phone,
