@@ -15,7 +15,8 @@ import {
   Settings,
   LogOut,
 } from 'lucide-react';
-import userSession from '../sessions/user_session'; // Adjust path as needed
+import userSession from '../sessions/user_session';
+import { supabase } from '../../lib/superbase';
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
@@ -30,19 +31,31 @@ export default function DashboardLayout({ children }) {
 
   // Subscribe to session changes
   useEffect(() => {
+    console.log('🏠 DashboardLayout: Mounting, initializing session');
+    
     // Initialize session
     userSession.initialize();
 
     // Subscribe to session updates
-    const unsubscribe = userSession.subscribe(setSessionData);
+    const unsubscribe = userSession.subscribe((newSessionData) => {
+      console.log('🏠 DashboardLayout: Session updated', {
+        user: newSessionData.user?.email,
+        isLoading: newSessionData.isLoading
+      });
+      setSessionData(newSessionData);
+    });
 
-    return () => unsubscribe();
+    return () => {
+      console.log('🏠 DashboardLayout: Unmounting, cleaning up');
+      unsubscribe();
+    };
   }, []);
 
   // Update active page based on current path
   useEffect(() => {
     const pathSegments = pathname.split('/');
     const currentPage = pathSegments[pathSegments.length - 1] || 'dashboard';
+    console.log('📍 DashboardLayout: Active page updated to', currentPage);
     setActivePage(currentPage);
   }, [pathname]);
 
@@ -56,28 +69,62 @@ export default function DashboardLayout({ children }) {
   ];
 
   const handleNavigation = (href) => {
+    console.log('🔄 DashboardLayout: Navigating to', href);
     router.push(href);
     setSidebarOpen(false);
   };
 
   const handleLogout = async () => {
     try {
+      console.log('🚪 DashboardLayout: Starting logout process...');
+      
+      // Clear local session first
+      userSession.clear();
+      
+      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      router.push('/login');
+      if (error) {
+        console.error('❌ DashboardLayout: Supabase logout error:', error);
+        throw error;
+      }
+      
+      console.log('✅ DashboardLayout: Logout successful, redirecting to login');
+      
+      // Use window.location for reliable redirect
+      window.location.href = '/';
+      
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('❌ DashboardLayout: Logout failed:', error);
+      // Even if there's an error, clear local session and redirect
+      userSession.clear();
+      window.location.href = '/';
     }
   };
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!sessionData.isLoading && !sessionData.user) {
-      router.push('/login');
+  // Enhanced logout with confirmation
+  const confirmLogout = () => {
+    if (window.confirm('Are you sure you want to sign out?')) {
+      handleLogout();
     }
-  }, [sessionData.isLoading, sessionData.user, router]);
+  };
 
+  // Redirect to login if not authenticated (only after loading is complete)
+  useEffect(() => {
+    console.log('🔍 DashboardLayout: Auth check', {
+      isLoading: sessionData.isLoading,
+      hasUser: !!sessionData.user,
+      currentPath: pathname
+    });
+
+    if (!sessionData.isLoading && !sessionData.user) {
+      console.log('🚫 DashboardLayout: No user found, redirecting to login');
+      router.push('/');
+    }
+  }, [sessionData.isLoading, sessionData.user, router, pathname]);
+
+  // Show loading state
   if (sessionData.isLoading) {
+    console.log('⏳ DashboardLayout: Showing loading state');
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -88,9 +135,13 @@ export default function DashboardLayout({ children }) {
     );
   }
 
+  // If no user after loading, show nothing (will redirect due to useEffect above)
   if (!sessionData.user) {
-    return null; // Will redirect due to useEffect above
+    console.log('❌ DashboardLayout: No user after loading, rendering null');
+    return null;
   }
+
+  console.log('✅ DashboardLayout: User authenticated, rendering dashboard');
 
   const { user, institution } = sessionData;
   const displayName = userSession.getDisplayName();
@@ -154,10 +205,7 @@ export default function DashboardLayout({ children }) {
 
         {/* User Profile */}
         <div className="flex-shrink-0 p-4 border-t border-border">
-          <button
-            onClick={handleLogout}
-            className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted transition-colors w-full text-left"
-          >
+          <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted transition-colors cursor-pointer group">
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-primary-foreground text-xs font-medium">{userInitials}</span>
             </div>
@@ -165,8 +213,14 @@ export default function DashboardLayout({ children }) {
               <p className="text-sm font-medium text-foreground truncate">{contactPerson}</p>
               <p className="text-xs text-muted-foreground truncate">{displayName}</p>
             </div>
-            <LogOut className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          </button>
+            <button
+              onClick={confirmLogout}
+              className="p-1 hover:bg-background rounded transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -193,7 +247,9 @@ export default function DashboardLayout({ children }) {
               <div className="flex items-center space-x-2">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-medium text-foreground">{contactPerson}</p>
-                  <p className="text-xs text-muted-foreground">Administrator</p>
+                  <p className="text-xs text-muted-foreground">
+                    {institution?.kyc_status === 'approved' ? 'Administrator' : 'Pending Approval'}
+                  </p>
                 </div>
                 <div className="w-8 h-8 bg-gradient-to-br from-primary to-green-500 rounded-full flex items-center justify-center flex-shrink-0">
                   <span className="text-primary-foreground text-xs font-semibold">{userInitials}</span>
@@ -203,8 +259,31 @@ export default function DashboardLayout({ children }) {
           </div>
         </header>
 
+        {/* KYC Status Banner (if pending) */}
+        {institution?.kyc_status !== 'approved' && (
+          <div className="bg-yellow-50 border-b border-yellow-200">
+            <div className="max-w-7xl mx-auto py-3 px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between flex-wrap">
+                <div className="flex items-center space-x-2">
+                  <span className="flex-shrink-0 w-2 h-2 bg-yellow-500 rounded-full"></span>
+                  <p className="text-sm text-yellow-800">
+                    Your KYC verification is {institution?.kyc_status || 'pending'}. 
+                    Some features may be limited until approval.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => router.push('/dashboard/settings')}
+                  className="text-sm font-medium text-yellow-800 hover:text-yellow-900 underline"
+                >
+                  View Status
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main Content - Dynamic based on active page */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-muted/20">
           {children}
         </main>
       </div>

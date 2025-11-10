@@ -1,5 +1,5 @@
 // sessions/user_session.js
-import { supabase } from '../../lib/superbase'
+import { supabase } from '../../lib/superbase';
 
 class UserSession {
   constructor() {
@@ -7,45 +7,58 @@ class UserSession {
     this.institution = null;
     this.isLoading = true;
     this.listeners = new Set();
+    this.initialized = false;
   }
 
   // Subscribe to session changes
   subscribe(callback) {
     this.listeners.add(callback);
+    // Immediately call with current state
+    callback(this.getCurrentUser());
     return () => this.listeners.delete(callback);
   }
 
   // Notify all listeners
   notify() {
-    this.listeners.forEach(callback => callback({
-      user: this.user,
-      institution: this.institution,
-      isLoading: this.isLoading
-    }));
+    const currentState = this.getCurrentUser();
+    this.listeners.forEach(callback => callback(currentState));
   }
 
   // Initialize session - call this on app start
   async initialize() {
-    try {
-      this.isLoading = true;
-      this.notify();
+    if (this.initialized) return;
+    
+    console.log('🔄 Session: Initializing session...');
+    this.isLoading = true;
+    this.initialized = true;
+    this.notify();
 
-      // Get current session
+    try {
+      // Get current session from Supabase
       const { data: { session }, error } = await supabase.auth.getSession();
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Session: Initialization error:', error);
+        throw error;
+      }
 
+      console.log('🔍 Session: Session found:', !!session);
+      console.log('👤 Session: User email:', session?.user?.email);
+      
       if (session?.user) {
+        console.log('✅ Session: Setting user from existing session');
         await this.setUser(session.user);
       } else {
+        console.log('❌ Session: No session found');
         this.user = null;
         this.institution = null;
+        this.isLoading = false;
+        this.notify();
       }
     } catch (error) {
-      console.error('Session initialization error:', error);
+      console.error('❌ Session: Initialization failed:', error);
       this.user = null;
       this.institution = null;
-    } finally {
       this.isLoading = false;
       this.notify();
     }
@@ -54,6 +67,7 @@ class UserSession {
   // Set user data and fetch institution info
   async setUser(user) {
     try {
+      console.log('👤 Session: Setting user:', user?.email);
       this.user = user;
       this.isLoading = true;
       this.notify();
@@ -66,22 +80,25 @@ class UserSession {
         .single();
 
       if (error) {
-        console.error('Error fetching institution data:', error);
+        console.error('❌ Session: Error fetching institution:', error);
         this.institution = null;
       } else {
+        console.log('🏢 Session: Institution data found:', institution?.institution_name);
         this.institution = institution;
       }
     } catch (error) {
-      console.error('Error setting user:', error);
+      console.error('❌ Session: Error setting user:', error);
       this.institution = null;
     } finally {
       this.isLoading = false;
       this.notify();
+      console.log('✅ Session: User setup complete');
     }
   }
 
   // Clear session (logout)
   clear() {
+    console.log('🚪 Session: Clearing session');
     this.user = null;
     this.institution = null;
     this.isLoading = false;
@@ -145,16 +162,32 @@ class UserSession {
 // Create singleton instance
 const userSession = new UserSession();
 
-// Set up auth state listener
+// Set up auth state listener - this persists across page refreshes
 supabase.auth.onAuthStateChange(async (event, session) => {
-  console.log('Auth state changed:', event);
+  console.log('🔄 Auth: State changed:', event, session?.user?.email);
   
   if (event === 'SIGNED_IN' && session?.user) {
+    console.log('✅ Auth: User signed in, updating session');
     await userSession.setUser(session.user);
   } else if (event === 'SIGNED_OUT') {
+    console.log('🚪 Auth: User signed out, clearing session');
     userSession.clear();
   } else if (event === 'USER_UPDATED' && session?.user) {
+    console.log('📝 Auth: User updated, refreshing session');
     await userSession.setUser(session.user);
+  } else if (event === 'INITIAL_SESSION') {
+    console.log('🔍 Auth: Initial session event - checking for existing session');
+    // This fires on page load, check if we have a session
+    if (session?.user) {
+      console.log('✅ Auth: Initial session has user, setting up');
+      await userSession.setUser(session.user);
+    } else {
+      console.log('❌ Auth: No initial session found');
+      userSession.isLoading = false;
+      userSession.notify();
+    }
+  } else if (event === 'TOKEN_REFRESHED') {
+    console.log('🔄 Auth: Token refreshed');
   }
 });
 
