@@ -1,10 +1,19 @@
-// app/public/loan_application/page.jsx
 'use client';
-import { useState } from 'react';
-import { User, Phone, MapPin, Mail, DollarSign, Calendar, Upload, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { User, Phone, MapPin, Mail, DollarSign, Calendar, Upload, CheckCircle, Building } from 'lucide-react';
+import { supabase } from '../../../lib/superbase'; // Fixed the import path
 
 export default function ApplyLoanPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const formId = searchParams.get('form');
+  
   const [currentStep, setCurrentStep] = useState(1);
+  const [institutionData, setInstitutionData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [formError, setFormError] = useState('');
+  
   const [formData, setFormData] = useState({
     // Personal Information
     firstName: '',
@@ -36,6 +45,74 @@ export default function ApplyLoanPage() {
 
   const [submitted, setSubmitted] = useState(false);
 
+  // Enhanced function to fetch institution data
+  useEffect(() => {
+    const fetchInstitutionData = async () => {
+      try {
+        setIsLoading(true);
+        setFormError('');
+        
+        console.log('🔍 Checking form ID:', formId);
+        
+        if (!formId) {
+          setFormError('Invalid form link. Missing form parameter.');
+          setIsLoading(false);
+          return;
+        }
+
+        // First, check if the form exists and is active
+        const { data: webForm, error: formError } = await supabase
+          .from('web_forms')
+          .select(`
+            *,
+            microfinance_institutions (
+              institution_name,
+              phone,
+              email,
+              address
+            )
+          `)
+          .eq('id', formId)
+          .eq('is_active', true)
+          .single();
+
+        if (formError || !webForm) {
+          console.error('Form fetch error:', formError);
+          throw new Error('Form not found or inactive. Please check your link.');
+        }
+
+        console.log('✅ Form found:', webForm);
+
+        // Check if institution data exists
+        if (!webForm.microfinance_institutions) {
+          throw new Error('Institution information not found.');
+        }
+
+        const institution = webForm.microfinance_institutions;
+
+        setInstitutionData({
+          name: institution.institution_name,
+          contact: institution.contact_info,
+          email: institution.email,
+          address: institution.address,
+          formId: webForm.id,
+          institutionId: webForm.institution_id,
+          companyName: webForm.company_name
+        });
+
+      } catch (error) {
+        console.error('❌ Error fetching data:', error);
+        setFormError(error.message || 'Invalid form link. Please check your URL.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (formId) {
+      fetchInstitutionData();
+    }
+  }, [formId]);
+
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
     if (files) {
@@ -45,52 +122,194 @@ export default function ApplyLoanPage() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Simulate form submission
-    console.log('Loan application submitted:', formData);
-    
-    // In a real app, you would send this data to your backend
-    // await fetch('/api/loan-applications', {
-    //   method: 'POST',
-    //   body: JSON.stringify(formData)
-    // });
-    
-    setSubmitted(true);
-  };
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (!institutionData) {
+    setFormError('Cannot identify lending institution. Please use a valid form link.');
+    return;
+  }
 
+  try {
+    console.log('📝 Submitting application for form:', formId);
+
+    // Enhanced validation
+    if (!formData.firstName || !formData.lastName || !formData.phone || !formData.idNumber || !formData.dateOfBirth || !formData.gender) {
+      throw new Error('Please fill all required personal information fields');
+    }
+
+    if (!formData.farmLocation || !formData.farmSize || !formData.mainCrop || !formData.farmingExperience || !formData.landOwnership) {
+      throw new Error('Please fill all required farm information fields');
+    }
+
+    if (!formData.loanAmount || !formData.loanPurpose || !formData.repaymentPeriod) {
+      throw new Error('Please fill all required loan details fields');
+    }
+
+    if (!formData.idDocument) {
+      throw new Error('Please upload your National ID document');
+    }
+
+    // Upload documents to existing 'documents' bucket in 'loan-docs' directory
+    let idDocumentPath = null;
+    let landDocumentPath = null;
+    let photoPath = null;
+
+    // Function to upload file to Supabase Storage
+    const uploadFile = async (file, subfolder, fileName) => {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `loan-docs/${subfolder}/${formId}/${Date.now()}_${fileName}.${fileExt}`;
+
+      console.log(`📤 Uploading ${fileName} to documents bucket...`);
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file);
+
+      if (error) {
+        console.error(`Upload error for ${fileName}:`, error);
+        throw new Error(`Failed to upload ${fileName}: ${error.message}`);
+      }
+
+      console.log(`✅ ${fileName} uploaded successfully:`, filePath);
+      return filePath;
+    };
+
+    // Upload ID Document
+    if (formData.idDocument) {
+      console.log('📤 Uploading ID document...');
+      idDocumentPath = await uploadFile(formData.idDocument, 'id-documents', 'national_id');
+    }
+
+    // Upload Land Document
+    if (formData.landDocument) {
+      console.log('📤 Uploading land document...');
+      landDocumentPath = await uploadFile(formData.landDocument, 'land-documents', 'land_proof');
+    }
+
+    // Upload Photo
+    if (formData.photo) {
+      console.log('📤 Uploading photo...');
+      photoPath = await uploadFile(formData.photo, 'photos', 'applicant_photo');
+    }
+
+    // Insert loan application into Supabase
+    console.log('💾 Saving application to database...');
+    const { data, error } = await supabase
+      .from('loan_applications')
+      .insert({
+        web_form_id: formId,
+        institution_id: institutionData.institutionId,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        id_number: formData.idNumber,
+        date_of_birth: formData.dateOfBirth,
+        gender: formData.gender,
+        farm_location: formData.farmLocation,
+        farm_size: formData.farmSize ? parseFloat(formData.farmSize) : null,
+        main_crop: formData.mainCrop,
+        farming_experience: formData.farmingExperience ? parseInt(formData.farmingExperience) : null,
+        land_ownership: formData.landOwnership,
+        loan_amount: formData.loanAmount ? parseFloat(formData.loanAmount) : null,
+        loan_purpose: formData.loanPurpose,
+        repayment_period: formData.repaymentPeriod,
+        collateral: formData.collateral,
+        id_document_path: idDocumentPath,
+        land_document_path: landDocumentPath,
+        photo_path: photoPath,
+        status: 'submitted' // Changed to match your form submission
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Database insert error:', error);
+      throw new Error('Failed to submit application. Please try again.');
+    }
+
+    console.log('✅ Application submitted:', data);
+
+    // Update submission count using the database function
+    const { error: updateError } = await supabase.rpc('increment_submission_count', { 
+      form_id: formId 
+    });
+
+    if (updateError) {
+      console.error('⚠️ Error updating submission count:', updateError);
+      // Don't throw error here, just log it
+    }
+
+    console.log('✅ Submission count updated');
+    setSubmitted(true);
+    
+  } catch (error) {
+    console.error('❌ Error submitting application:', error);
+    setFormError(error.message || 'Error submitting application. Please try again.');
+  }
+};
   const nextStep = () => {
+    // Enhanced validation before proceeding to next step
+    if (currentStep === 1) {
+      if (!formData.firstName || !formData.lastName || !formData.phone || !formData.idNumber || !formData.dateOfBirth || !formData.gender) {
+        setFormError('Please fill all required fields in Personal Information');
+        return;
+      }
+    } else if (currentStep === 2) {
+      if (!formData.farmLocation || !formData.farmSize || !formData.mainCrop || !formData.farmingExperience || !formData.landOwnership) {
+        setFormError('Please fill all required fields in Farm Information');
+        return;
+      }
+    } else if (currentStep === 3) {
+      if (!formData.loanAmount || !formData.loanPurpose || !formData.repaymentPeriod) {
+        setFormError('Please fill all required fields in Loan Requirements');
+        return;
+      }
+    }
+    
+    setFormError(''); // Clear any previous errors
     setCurrentStep(prev => Math.min(prev + 1, 4));
   };
 
   const prevStep = () => {
+    setFormError(''); // Clear errors when going back
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  if (submitted) {
+  // Loading state
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 text-center">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+      <div className="min-h-screen bg-primary-foreground from-green-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white dark:bg-primary-foreground rounded-2xl shadow-lg p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Loading Application Form</h2>
+          <p className="text-gray-600 dark:text-gray-300">Please wait while we load your form...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (formError && !submitted) {
+    return (
+      <div className="min-h-screen bg-primary-foreground from-green-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white dark:primary-foreground rounded-2xl shadow-lg p-8 text-center">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">⚠️</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Application Submitted!</h1>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">
-            Thank you for your loan application. We will review your information and contact you within 2-3 business days.
-          </p>
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-left">
-            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">What happens next?</h3>
-            <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-              <li>• Application review by our team</li>
-              <li>• Verification of documents</li>
-              <li>• Site visit if required</li>
-              <li>• Loan approval decision</li>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Invalid Form Link</h1>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">{formError}</p>
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 text-left mb-6">
+            <h3 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-2">Troubleshooting Tips:</h3>
+            <ul className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1">
+              <li>• Check that the URL is correct</li>
+              <li>• Ensure the form hasn't been deactivated</li>
+              <li>• Contact the microfinance institution for a new link</li>
             </ul>
           </div>
           <button
             onClick={() => window.location.href = '/'}
-            className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition-colors"
+            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition-colors"
           >
             Return to Homepage
           </button>
@@ -99,31 +318,83 @@ export default function ApplyLoanPage() {
     );
   }
 
+  // Success state
+  if (submitted) {
+    return (
+      <div className="min-h-screen primary-foreground from-green-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Application Submitted!</h1>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            Thank you for your loan application to <span className="font-semibold">{institutionData?.name}</span>.
+          </p>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">
+            We will review your information and contact you within 2-3 business days.
+          </p>
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-left mb-6">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">What happens next?</h3>
+            <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+              <li>• Application review by {institutionData?.name}</li>
+              <li>• Verification of documents</li>
+              <li>• Site visit if required</li>
+              <li>• Loan approval decision</li>
+              <li>• Funds disbursement if approved</li>
+            </ul>
+          </div>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition-colors"
+          >
+            Return to Homepage
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error message if exists
+  const ErrorMessage = () => (
+    formError && (
+      <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+        <div className="flex items-center">
+          <span className="text-red-500 mr-2">⚠</span>
+          <p className="text-red-800 dark:text-red-200 text-sm">{formError}</p>
+        </div>
+      </div>
+    )
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-primary-foreground from-green-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-primary-foreground shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">A</span>
+                <Building className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AgriFin</h1>
-                <p className="text-gray-600 dark:text-gray-300 text-sm">Agricultural Microfinance</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {institutionData?.name || 'Loading...'}
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300 text-sm">Loan Application Form</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Form ID: {formId}
+                </p>
               </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-600 dark:text-gray-300">Need help?</p>
-              <p className="font-semibold text-gray-900 dark:text-white">+265 123 456 789</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Progress Bar */}
+      {/* Main Form Content */}
       <div className="max-w-4xl mx-auto px-4 py-6">
+        <ErrorMessage />
+        
+        {/* Progress Bar */}
         <div className="flex items-center justify-between mb-8">
           {[1, 2, 3, 4].map((step) => (
             <div key={step} className="flex items-center">
@@ -155,7 +426,7 @@ export default function ApplyLoanPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 sm:p-8 border border-gray-200 dark:border-gray-700">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-primary-foreground rounded-2xl shadow-lg p-6 sm:p-8 border border-gray-200 dark:border-gray-700">
           {/* Step 1: Personal Information */}
           {currentStep === 1 && (
             <div className="space-y-6">
@@ -613,7 +884,7 @@ export default function ApplyLoanPage() {
         {/* Footer Info */}
         <div className="text-center mt-8 text-sm text-gray-600 dark:text-gray-400">
           <p>Your information is secure and will only be used for loan processing purposes.</p>
-          <p className="mt-2">Contact us: +265 123 456 789 | info@agrifin.mw</p>
+          <p className="mt-2">Contact: {institutionData?.contact || 'Loading...'} | {institutionData?.email || 'info@agrifin.mw'}</p>
         </div>
       </div>
     </div>
