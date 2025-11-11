@@ -8,10 +8,8 @@ export const metadata = {
 
 export default function PublicLayout({ children }) {
   return (
-    <html lang="en">
-      <body>
+      <div>
         {children}
-      </body>
-    </html>
+      </div>
   );
 }

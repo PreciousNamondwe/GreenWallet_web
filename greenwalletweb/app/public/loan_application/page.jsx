@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { User, Phone, MapPin, Mail, DollarSign, Calendar, Upload, CheckCircle, Building } from 'lucide-react';
-import { supabase } from '../../../lib/superbase'; // Fixed the import path
+import { supabase } from '../../../lib/superbase';
 
 export default function ApplyLoanPage() {
   const searchParams = useSearchParams();
